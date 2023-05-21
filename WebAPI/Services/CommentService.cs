@@ -3,10 +3,13 @@ using Application_Core.Model;
 using AutoMapper;
 using Infrastructure.Dto;
 using Infrastructure.EF.Entity;
+using Infrastructure.EF.Pagination;
 using Infrastructure.EF.Repository.CommentRepository;
 using Infrastructure.EF.Repository.PostRepository;
-using Microsoft.AspNet.Identity;
+//using Microsoft.AspNet.Identity;
 using Microsoft.AspNet.Identity.EntityFramework;
+using Microsoft.AspNetCore.Identity;
+using System.Net;
 using WebAPI.Request;
 using WebAPI.Services.Interfaces;
 
@@ -17,13 +20,16 @@ namespace WebAPI.Services
         private readonly ICommentRepository _commentRepository;
         private readonly IPostRepository _postRepository;
         private readonly IMapper _mapper;
+        private readonly UserManager<UserEntity> _userManager;
+        private readonly Paginator<Comment> _paginator;
 
-
-        public CommentService(ICommentRepository commentRepository, IMapper mapper, IPostRepository postRepository)
+        public CommentService(ICommentRepository commentRepository, IMapper mapper, IPostRepository postRepository, UserManager<UserEntity> userManager)
         {
             _commentRepository = commentRepository;
             _postRepository = postRepository;
             _mapper = mapper;
+            _userManager = userManager;
+            _paginator = new Paginator<Comment>();
         }
 
         public async Task<Guid> AddComment(AddCommentRequest request, UserEntity user)
@@ -34,29 +40,34 @@ namespace WebAPI.Services
 
             Comment comment = new Comment()
             {
-                Post= post,
+                Post = post,
                 PostId = post.Id,
-                Text= request.Text,
-                User= user,
-                UserId= user.Id
+                Text = request.Text,
+                User = user,
+                UserId = user.Id
             };
 
             return await _commentRepository.AddCommentAsync(comment);
         }
 
-        public async Task<List<CommentDto>> GetAll(Guid postGuId)
+        public async Task<PaginatorResult<CommentDto>> GetAll(GetAllCommentsRequest request)
         {
-            Post post = await _postRepository.GetByGuidAsync(postGuId) ?? throw new PostNotFoundException();
-            
-            List<Comment> comments = await _commentRepository.GetAllCommentsAsync(post.Id);
-            List<CommentDto> result = _mapper.Map<List<Comment>, List<CommentDto>>(comments);
-            return result;
+            Post post = await _postRepository.GetByGuidAsync(request.PostGuid) ?? throw new PostNotFoundException();
+
+            PaginatorResult<Comment> result = await _paginator
+                .SetItemNumberPerPage(request.ItemNumber)
+                .Paginate(await _commentRepository.GetAllCommentsQueryAsync(post.Id), request.Page);
+
+            PaginatorResult<CommentDto> resultDto = new(result.TotalItems, result.ItemsOnPage
+            , _mapper.Map<List<CommentDto>>(result.Items), result.CurrentPage, result.TotalPages);
+
+            return resultDto;
         }
 
         public async Task<CommentDto> FindByGuId(Guid commentGuId)
         {
             Comment comment = await _commentRepository.GetCommentByGuIdAsync(commentGuId);
-            if(comment is null) throw new CommentNotFoundException();
+            if (comment is null) throw new CommentNotFoundException();
 
             CommentDto commentDto = _mapper.Map<CommentDto>(comment);
 
@@ -64,11 +75,13 @@ namespace WebAPI.Services
             return await Task.FromResult(commentDto);
         }
 
-        public async Task<CommentDto> Edit(EditCommentRequest request)
+        public async Task<CommentDto> Edit(EditCommentRequest request, UserEntity user)
         {
             Comment comment = await _commentRepository.GetCommentByGuIdAsync(request.CommentGuId);
 
-            if(comment is null) throw new CommentNotFoundException();
+            if(comment.UserId != user.Id) throw new NotAuthorizedException();
+
+            if (comment is null) throw new CommentNotFoundException();
             comment.Text = request.Text;
             await _commentRepository.EditCommentAsync(comment);
 
@@ -77,10 +90,20 @@ namespace WebAPI.Services
             return await Task.FromResult(commentDto);
         }
 
-        public async Task Delete(Guid CommentGuid)
+        public async Task Delete(Guid CommentGuid, UserEntity user)
         {
             Comment comment = await _commentRepository.GetCommentByGuIdAsync(CommentGuid);
-            if(comment is null ) throw new CommentNotFoundException();
+
+            if (!await _userManager.IsInRoleAsync(user, "Admin"))
+            {
+                if (comment.UserId != user.Id)
+                {
+                    throw new NotAuthorizedException();
+                }
+            }
+
+            if (comment is null) throw new CommentNotFoundException();
+
             await _commentRepository.DeleteAsync(comment);
         }
     }

@@ -1,4 +1,5 @@
 ﻿using Application_Core.Model;
+using Infrastructure.EF.Entity;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,5 +15,6 @@ namespace Infrastructure.EF.Repository.CommentRepository
         Task EditCommentAsync(Comment comment);
         Task<List<Comment>> GetAllCommentsAsync(int postId);
         Task<Comment> GetCommentByGuIdAsync(Guid guId);
+        Task<IQueryable<Comment>> GetAllCommentsQueryAsync(int postId);
     }
 }

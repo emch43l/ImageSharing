@@ -33,26 +33,34 @@ namespace Infrastructure.EF.Repository.CommentRepository
 
         public async Task EditCommentAsync(Comment comment)
         {
-            Comment? _comment =  _context.Comments.FirstOrDefault(i => i.Guid == comment.Guid);
-            _comment.Text=comment.Text;
+            Comment? _comment = _context.Comments.FirstOrDefault(i => i.Guid == comment.Guid);
+            _comment.Text = comment.Text;
             await _context.SaveChangesAsync();
         }
 
         public async Task<List<Comment>> GetAllCommentsAsync(int postId)
         {
             return _context.Comments
-                .Where(i=>i.PostId==postId)
-                .Include(p=>p.Post)
-                .Include(u=>u.User)
+                .Where(i => i.PostId == postId)
+                .Include(p => p.Post)
+                .Include(u => u.User)
                 .ToList();
+        }
+
+        public async Task<IQueryable<Comment>> GetAllCommentsQueryAsync(int postId)
+        {
+            return _context.Comments
+                .Where(i => i.PostId == postId)
+                .Include(p => p.Post)
+                .Include(u => u.User);
         }
 
         public async Task<Comment> GetCommentByGuIdAsync(Guid guId)
         {
             return await _context.Comments
-                .Where(i=>i.Guid==guId)
-                .Include(p=>p.Post)
-                .Include(u=>u.User)
+                .Where(i => i.Guid == guId)
+                .Include(p => p.Post)
+                .Include(u => u.User)
                 .FirstOrDefaultAsync();
         }
     }

@@ -55,7 +55,7 @@ namespace WebAPI.Services
 
         public async Task<PaginatorResult<CommentDto>> GetAll(GetAllCommentsRequest request)
         {
-            Post post = await _postRepository.GetByGuidAsync(request.PostGuid) ?? throw new PostNotFoundException();
+            Post post = await _postRepository.GetByGuid(request.PostGuid) ?? throw new PostNotFoundException();
 
             PaginatorResult<Comment> result = await _paginator
                 .SetItemNumberPerPage(request.ItemNumber)
@@ -71,7 +71,7 @@ namespace WebAPI.Services
         {
             Comment comment = await _commentRepository.GetCommentByGuIdAsync(commentGuId) ?? throw new CommentNotFoundException();
             CommentDto commentDto = _mapper.Map<CommentDto>(comment);
-            
+
             return commentDto;
         }
 
@@ -80,9 +80,6 @@ namespace WebAPI.Services
             Comment comment = await _commentRepository.GetCommentByGuIdAsync(request.CommentGuId) ?? throw new CommentNotFoundException();
             if (comment.UserId != user.Id) throw new NotAuthorizedException();
 
-            if(comment.UserId != user.Id) throw new NotAuthorizedException();
-
-            if (comment is null) throw new CommentNotFoundException();
             comment.Text = request.Text;
             await _commentRepository.EditCommentAsync(comment);
 
@@ -91,11 +88,18 @@ namespace WebAPI.Services
             return commentDto;
         }
 
-        public async Task Delete(Guid CommentGuid)
+        public async Task Delete(Guid CommentGuid, UserEntity user)
         {
             Comment comment = await _commentRepository.GetCommentByGuIdAsync(CommentGuid);
-            if(comment is null ) throw new CommentNotFoundException();
-            await _commentRepository.DeleteAsync(comment);
+            if (comment is null) throw new CommentNotFoundException();
+            if (!await _userManager.IsInRoleAsync(user, "Admin"))
+            {
+                if (comment.UserId != user.Id)
+                {
+                    throw new NotAuthorizedException();
+                }
+            }
+
             await _commentRepository.Remove(comment);
         }
     }

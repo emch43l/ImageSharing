@@ -1,4 +1,5 @@
 ﻿using Application_Core.Model;
+using Infrastructure.EF.Entity;
 using System;
 using System.Collections.Generic;
 using System.Linq;

@@ -31,6 +31,14 @@ namespace Infrastructure.EF.Repository.CommentRepository
                 .ToListAsync();
         }
 
+        public async Task<IQueryable<Comment>> GetAllCommentsQueryAsync(int postId)
+        {
+            return Context.Comments
+                .Where(i => i.PostId == postId)
+                .Include(p => p.Post)
+                .Include(u => u.User);
+        }
+
         public async Task<Comment?> GetCommentByGuIdAsync(Guid guId)
         {
             return await Context.Comments

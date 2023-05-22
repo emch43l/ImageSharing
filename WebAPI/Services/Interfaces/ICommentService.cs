@@ -8,8 +8,8 @@ namespace WebAPI.Services.Interfaces;
 public interface ICommentService
 {
     Task<Guid> AddComment(AddCommentRequest request, UserEntity user);
-    Task<List<CommentDto>> GetAll(Guid postGuId);
+    Task<List<CommentDto>> GetAll(GetAllCommentsRequest request);
     Task<CommentDto> FindByGuId(Guid commentGuId);
-    Task<CommentDto> Edit(EditCommentRequest request);
-    Task Delete(Guid CommentGuid);
+    Task<CommentDto> Edit(EditCommentRequest request, UserEntity user);
+    Task Delete(Guid CommentGuid, UserEntity user);
 }

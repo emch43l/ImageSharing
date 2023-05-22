@@ -1,13 +1,16 @@
 ﻿using Application_Core.Common.Specification;
 using Application_Core.Exception;
 using Application_Core.Model;
+using Application_Core.Model.Interface;
 using AutoMapper;
 using Infrastructure.Dto;
 using Infrastructure.EF.Entity;
+using Infrastructure.EF.Pagination;
 using Infrastructure.EF.Repository.CommentRepository;
 using Infrastructure.EF.Repository.PostRepository;
 using Microsoft.AspNet.Identity;
 using Microsoft.AspNet.Identity.EntityFramework;
+using Microsoft.AspNetCore.Identity;
 using WebAPI.Request;
 using WebAPI.Services.Interfaces;
 
@@ -46,20 +49,18 @@ namespace WebAPI.Services
             return comment.Guid;
         }
 
-        public async Task<List<CommentDto>> GetAll(Guid postGuId)
+        public async Task<PaginatorResult<CommentDto>> GetAll(GetAllCommentsRequest request)
         {
-            Post post = await _postRepository.GetByGuid(postGuId) ?? throw new PostNotFoundException();
+            Post post = await _postRepository.GetByGuidAsync(request.PostGuid) ?? throw new PostNotFoundException();
 
-            BaseSpecification<Comment> specification = new BaseSpecification<Comment>();
+            PaginatorResult<Comment> result = await _paginator
+                .SetItemNumberPerPage(request.ItemNumber)
+                .Paginate(await _commentRepository.GetAllCommentsQueryAsync(post.Id), request.Page);
 
-            specification.AddCriteria(c => c.PostId == post.Id);
-            specification
-                .AddInclude(c => c.Post)
-                .AddInclude(c => c.User);
+            PaginatorResult<CommentDto> resultDto = new(result.TotalItems, result.ItemsOnPage
+            , _mapper.Map<List<CommentDto>>(result.Items), result.CurrentPage, result.TotalPages);
 
-            List<Comment> comments = (await _commentRepository.GetByCriteria(specification)).ToList();
-            List<CommentDto> result = _mapper.Map<List<Comment>, List<CommentDto>>(comments);
-            return result;
+            return resultDto;
         }
 
         public async Task<CommentDto> FindByGuId(Guid commentGuId)
@@ -70,9 +71,12 @@ namespace WebAPI.Services
             return commentDto;
         }
 
-        public async Task<CommentDto> Edit(EditCommentRequest request)
+        public async Task<CommentDto> Edit(EditCommentRequest request, UserEntity user)
         {
             Comment comment = await _commentRepository.GetCommentByGuIdAsync(request.CommentGuId) ?? throw new CommentNotFoundException();
+            if (comment.UserId != user.Id) throw new NotAuthorizedException();
+
+            if (comment is null) throw new CommentNotFoundException();
             comment.Text = request.Text;
             await _commentRepository.EditCommentAsync(comment);
 
@@ -81,9 +85,20 @@ namespace WebAPI.Services
             return commentDto;
         }
 
-        public async Task Delete(Guid commentGuid)
+        public async Task Delete(Guid CommentGuid, UserEntity user)
         {
             Comment comment = await _commentRepository.GetCommentByGuIdAsync(commentGuid) ?? throw new CommentNotFoundException();
+            if (!await _userManager.IsInRoleAsync(user, "Admin"))
+            {
+                if (comment.UserId != user.Id)
+                {
+                    throw new NotAuthorizedException();
+                }
+            }
+
+            if (comment is null) throw new CommentNotFoundException();
+
+            await _commentRepository.DeleteAsync(comment);
             await _commentRepository.Remove(comment);
         }
     }
